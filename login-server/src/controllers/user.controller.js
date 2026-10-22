@@ -6,6 +6,10 @@ const getAllActivated = async (req, res) => {
   res.send(users.map(userService.normalize));
 };
 
+// const updateName = async (req, res) => {
+//   const name
+// }
+
 export const userController = {
   getAllActivated,
 };

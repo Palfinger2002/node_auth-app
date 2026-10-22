@@ -14,6 +14,9 @@ import { AccountActivationPage } from './pages/AccountActivationPage';
 import { LoginPage } from './pages/LoginPage';
 import { RequireAuth } from './components/RequireAuth';
 import { UsersPage } from './pages/UsersPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { NotFound } from './pages/NotFound';
+import { RequireNonAuth } from './components/RequireNonAuth';
 import { AxiosError } from 'axios';
 
 export function App() {
@@ -33,7 +36,7 @@ export function App() {
   const handleLogout = () => {
     logout()
       .then(() => {
-        navigate('/');
+        navigate('/login');
       })
       .catch((err: AxiosError<{ message?: string }>) => {
         setError(err.response?.data?.message ?? '');
@@ -93,16 +96,21 @@ export function App() {
         <section className="section">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="sign-up" element={<RegistrationPage />} />
             <Route
-              path="activate/:email/:activationToken"
+              path="activate/:name/:email/:activationToken"
               element={<AccountActivationPage />}
             />
-            <Route path="login" element={<LoginPage />} />
+            <Route path="/" element={<RequireNonAuth />}>
+              <Route path="login" element={<LoginPage />} />
+              <Route path="sign-up" element={<RegistrationPage />} />
+            </Route>
 
             <Route path="/" element={<RequireAuth />}>
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
+
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </section>
 

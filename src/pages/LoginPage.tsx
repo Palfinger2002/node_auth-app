@@ -6,6 +6,23 @@ import { usePageError } from '../hooks/usePageError';
 import { useAuth } from '../components/AuthContext';
 import { AxiosError } from 'axios';
 
+function validateName(name: string) {
+  const trimmedName = name.trim();
+
+  const nameRegex =
+    /^[a-zA-Zа-яА-ЯіІїЇєЄґҐ]+([ '’\-][a-zA-Zа-яА-ЯіІїЇєЄґҐ]+)*$/;
+
+  if (!trimmedName) {
+    return 'Name is required';
+  }
+
+  if (trimmedName.length < 2 || trimmedName.length > 50) {
+    return 'At least 2 characters and no more than 50 characters';
+  }
+
+  return nameRegex.test(trimmedName) ? undefined : 'Name is not valid';
+}
+
 const EMAIL_PATTERN = /^[\w.+-]+@([\w-]+\.){1,3}[\w-]{2,}$/;
 
 function validateEmail(email: string) {
@@ -43,12 +60,13 @@ export const LoginPage = () => {
     <>
       <Formik
         initialValues={{
+          name: '',
           email: '',
           password: '',
         }}
         validateOnMount={true}
-        onSubmit={({ email, password }) => {
-          return login(email, password)
+        onSubmit={({ name, email, password }) => {
+          return login(name, email, password)
             .then(() => {
               const state = location.state as { from?: Location };
 
@@ -62,6 +80,38 @@ export const LoginPage = () => {
         {({ touched, errors, isSubmitting }) => (
           <Form className="box">
             <h1 className="title">Log in</h1>
+            <div className="field">
+              <label htmlFor="name" className="label">
+                Name
+              </label>
+
+              <div className="control has-icons-left has-icons-right">
+                <Field
+                  validate={validateName}
+                  name="name"
+                  type="text"
+                  id="name"
+                  placeholder="e.g. Bob Smith"
+                  className={cn('input', {
+                    'is-danger': touched.name && errors.name,
+                  })}
+                />
+
+                <span className="icon is-small is-left">
+                  <i className="fa fa-user"></i>
+                </span>
+
+                {touched.name && errors.name && (
+                  <span className="icon is-small is-right has-text-danger">
+                    <i className="fas fa-exclamation-triangle"></i>
+                  </span>
+                )}
+              </div>
+
+              {touched.name && errors.name && (
+                <p className="help is-danger">{errors.name}</p>
+              )}
+            </div>
             <div className="field">
               <label htmlFor="email" className="label">
                 Email

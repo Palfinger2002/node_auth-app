@@ -9,28 +9,45 @@ import { usePageError } from '../hooks/usePageError';
 import { useAuth } from '../components/AuthContext';
 
 type RegistrationError = AxiosError<{
-  errors?: { email?: string; password?: string };
+  errors?: { name?: string; email?: string; password?: string };
   message: string;
 }>;
 
-function validateEmail(value: string) {
+const validateName = (name: string) => {
+  const trimmedName = name.trim();
+
+  const nameRegex =
+    /^[a-zA-Zа-яА-ЯіІїЇєЄґҐ]+([ '’\-][a-zA-Zа-яА-ЯіІїЇєЄґҐ]+)*$/;
+
+  if (!trimmedName) {
+    return 'Name is required';
+  }
+
+  if (trimmedName.length < 2 || trimmedName.length > 50) {
+    return 'At least 2 characters and no more than 50 characters';
+  }
+
+  return nameRegex.test(trimmedName) ? undefined : 'Name is not valid';
+};
+
+function validateEmail(email: string) {
   const EMAIL_PATTERN = /^[\w.+-]+@([\w-]+\.){1,3}[\w-]{2,}$/;
 
-  if (!value) {
+  if (!email) {
     return 'Email is required';
   }
 
-  if (!EMAIL_PATTERN.test(value)) {
+  if (!EMAIL_PATTERN.test(email)) {
     return 'Email is not valid';
   }
 }
 
-const validatePassword = (value: string) => {
-  if (!value) {
+const validatePassword = (password: string) => {
+  if (!password) {
     return 'Password is required';
   }
 
-  if (value.length < 6) {
+  if (password.length < 6) {
     return 'At least 6 characters';
   }
 };
@@ -58,15 +75,16 @@ export const RegistrationPage = () => {
     <>
       <Formik
         initialValues={{
+          name: '',
           email: '',
           password: '',
         }}
         validateOnMount={true}
-        onSubmit={({ email, password }, formikHelpers) => {
+        onSubmit={({ name, email, password }, formikHelpers) => {
           formikHelpers.setSubmitting(true);
 
           authService
-            .register(email, password)
+            .register(name, email, password)
             .then(() => setRegistered(true))
             .catch((err: RegistrationError) => {
               if (err.message) {
@@ -79,6 +97,7 @@ export const RegistrationPage = () => {
 
               const { errors, message } = err.response.data;
 
+              formikHelpers.setFieldError('name', errors?.name);
               formikHelpers.setFieldError('email', errors?.email);
               formikHelpers.setFieldError('password', errors?.password);
 
@@ -92,6 +111,38 @@ export const RegistrationPage = () => {
         {({ touched, errors, isSubmitting }) => (
           <Form className="box">
             <h1 className="title">Sign up</h1>
+            <div className="field">
+              <label htmlFor="name" className="label">
+                Name
+              </label>
+
+              <div className="control has-icons-left has-icons-right">
+                <Field
+                  validate={validateName}
+                  name="name"
+                  type="text"
+                  id="name"
+                  placeholder="e.g. Bob Smith"
+                  className={cn('input', {
+                    'is-danger': touched.name && errors.name,
+                  })}
+                />
+
+                <span className="icon is-small is-left">
+                  <i className="fa fa-user"></i>
+                </span>
+
+                {touched.name && errors.name && (
+                  <span className="icon is-small is-right has-text-danger">
+                    <i className="fas fa-exclamation-triangle"></i>
+                  </span>
+                )}
+              </div>
+
+              {touched.name && errors.name && (
+                <p className="help is-danger">{errors.name}</p>
+              )}
+            </div>
             <div className="field">
               <label htmlFor="email" className="label">
                 Email

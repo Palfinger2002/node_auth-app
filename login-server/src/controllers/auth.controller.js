@@ -5,6 +5,22 @@ import { ApiError } from '../exeptions/api.error.js';
 import bcrypt from 'bcrypt';
 import { tokenService } from '../services/token.service.js';
 
+function validateName(name) {
+  const trimmedName = name.trim();
+
+  const nameRegex = /^[a-zA-Zа-яА-ЯіІїЇєЄґҐ]+([ '’-][a-zA-Zа-яА-ЯіІїЇєЄґҐ]+)*$/;
+
+  if (!trimmedName) {
+    return 'Name is required';
+  }
+
+  if (trimmedName.length < 2 || trimmedName.length > 50) {
+    return 'At least 2 characters and no more than 50 characters';
+  }
+
+  return nameRegex.test(trimmedName) ? undefined : 'Name is not valid';
+}
+
 function validateEmail(email) {
   const emailPatern = /^[\w.+-]+@([\w-]+\.){1,3}[\w-]{2,}$/;
 
@@ -15,6 +31,8 @@ function validateEmail(email) {
   if (!emailPatern.test(email)) {
     return 'Email is not valid';
   }
+
+  return undefined;
 }
 
 function validatePassword(password) {
@@ -25,41 +43,48 @@ function validatePassword(password) {
   if (password.length < 6) {
     return 'At least 6 characters';
   }
+
+  return undefined;
 }
 
 const register = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { name, email, password } = req.body;
 
   const errors = {
+    name: validateName(name),
     email: validateEmail(email),
     password: validatePassword(password),
   };
 
-  if (errors.email || errors.password) {
+  if (errors.name || errors.email || errors.password) {
     throw ApiError.badRequest('Bad request', errors);
   }
 
   const hashedPass = await bcrypt.hash(password, 10);
 
-  await userService.register(email, hashedPass);
+  await userService.register(name, email, hashedPass);
 
   res.send({ message: 'OK' });
 };
 
 const activate = async (req, res) => {
-  const { activationToken } = req.params;
+  const { name, email, activationToken } = req.params;
 
-  const user = await User.findOne({ where: { activationToken } });
+  const user = await User.findOne({
+    where: {
+      email: decodeURIComponent(email).trim().toLowerCase(),
+      activationToken,
+    },
+  });
 
   if (!user) {
-    res.sendStatus(404);
-    return;
+    throw ApiError.badRequest('Invalid or expired activation link');
   }
 
   user.activationToken = null;
-  user.save();
+  await user.save();
 
-  res.send(user);
+  await generateTokens(res, user);
 };
 
 const login = async (req, res) => {
@@ -69,6 +94,10 @@ const login = async (req, res) => {
 
   if (!user) {
     throw ApiError.badRequest('No such user');
+  }
+
+  if (user.activationToken) {
+    throw ApiError.badRequest('Please activate your email');
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -90,7 +119,7 @@ const generateTokens = async (res, user) => {
 
   res.cookie('refreshToken', refreshAccessToken, {
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    HttpOnly: true,
+    httpOnly: true,
   });
 
   res.send({

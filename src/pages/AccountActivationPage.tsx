@@ -10,22 +10,22 @@ export const AccountActivationPage = () => {
   const [done, setDone] = useState(false);
 
   const { activate } = useAuth();
-  const { activationToken = '', email = '' } = useParams();
+  const { name = '', email = '', activationToken = '' } = useParams();
 
   useEffect(() => {
-    if (!activationToken || !email) {
+    if (!name || !email || !activationToken) {
       setError('Wrong activation link');
       setDone(true);
 
       return;
     }
 
-    activate(email, activationToken)
+    activate(name, email, activationToken)
       .catch((err: AxiosError<{ message?: string }>) => {
         setError(err.response?.data?.message ?? `Wrong activation link`);
       })
       .finally(() => setDone(true));
-  }, [activate, activationToken, email]);
+  }, [name, email, activationToken, activate]);
 
   if (!done) {
     return <Loader />;

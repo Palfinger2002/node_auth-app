@@ -7,16 +7,18 @@ interface AuthData {
 }
 
 export const authService = {
-  register: (email: string, password: string) => {
-    return client.post('/registration', { email, password });
+  register: (name: string, email: string, password: string) => {
+    return client.post('/registration', { name, email, password });
   },
 
-  activate: (email: string, token: string): Promise<AuthData> => {
-    return client.get(`/activation/${email}/${token}`);
+  activate: (name: string, email: string, token: string): Promise<AuthData> => {
+    return client.get(
+      `/activation/${encodeURIComponent(name)}/${encodeURIComponent(email)}/${encodeURIComponent(token)}`,
+    );
   },
 
-  login: (email: string, password: string): Promise<AuthData> => {
-    return client.post('/login', { email, password });
+  login: (name: string, email: string, password: string): Promise<AuthData> => {
+    return client.post('/login', { name, email, password });
   },
 
   logout: () => client.post('/logout'),

@@ -9,18 +9,19 @@ export function getAllActivated() {
   });
 }
 
-function normalize({ id, email }) {
-  return { id, email };
+function normalize({ name, id, email }) {
+  return { name, id, email };
 }
 
 function findByEmail(email) {
   return User.findOne({ where: { email } });
 }
 
-async function register(email, password) {
-  const activationToken = uuidv4();
+async function register(name, email, password) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedName = name.trim();
 
-  const existUser = await User.findOne({ where: { email } });
+  const existUser = await User.findOne({ where: { email: normalizedEmail } });
 
   if (existUser) {
     throw ApiError.badRequest('User already exist', {
@@ -28,9 +29,26 @@ async function register(email, password) {
     });
   }
 
-  const newUser = await User.create({ email, password, activationToken });
+  const activationToken = uuidv4();
 
-  await emailService.sendActivationEmail(email, activationToken);
+  const newUser = await User.create({
+    name: normalizedName,
+    email: normalizedEmail,
+    password,
+    activationToken,
+  });
+
+  try {
+    await emailService.sendActivationEmail(
+      normalizedName,
+      normalizedEmail,
+      activationToken,
+    );
+  } catch (err) {
+    console.error('[email] Failed to send activation email:', err.message);
+  }
+
+  return userService.normalize(newUser);
 }
 
 export const userService = {
