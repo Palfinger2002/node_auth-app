@@ -4,50 +4,24 @@ import { jwtService } from '../services/jwt.service.js';
 import { ApiError } from '../exeptions/api.error.js';
 import bcrypt from 'bcrypt';
 import { tokenService } from '../services/token.service.js';
+import { randomUUID } from 'node:crypto';
+import { emailService } from '../services/email.service.js';
+import {
+  normalizedEmail,
+  validateEmail,
+  validateName,
+  validatePassword,
+} from '../utils/validation.js';
 
-function validateName(name) {
-  const trimmedName = name.trim();
+const REFRESH_COOKIE = 'refreshToken';
 
-  const nameRegex = /^[a-zA-Zа-яА-ЯіІїЇєЄґҐ]+([ '’-][a-zA-Zа-яА-ЯіІїЇєЄґҐ]+)*$/;
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+};
 
-  if (!trimmedName) {
-    return 'Name is required';
-  }
-
-  if (trimmedName.length < 2 || trimmedName.length > 50) {
-    return 'At least 2 characters and no more than 50 characters';
-  }
-
-  return nameRegex.test(trimmedName) ? undefined : 'Name is not valid';
-}
-
-function validateEmail(email) {
-  const emailPatern = /^[\w.+-]+@([\w-]+\.){1,3}[\w-]{2,}$/;
-
-  if (!email) {
-    return 'Email is required';
-  }
-
-  if (!emailPatern.test(email)) {
-    return 'Email is not valid';
-  }
-
-  return undefined;
-}
-
-function validatePassword(password) {
-  if (!password) {
-    return 'Password is required';
-  }
-
-  if (password.length < 6) {
-    return 'At least 6 characters';
-  }
-
-  return undefined;
-}
-
-const register = async (req, res, next) => {
+const register = async (req, res) => {
   const { name, email, password } = req.body;
 
   const errors = {
@@ -68,11 +42,10 @@ const register = async (req, res, next) => {
 };
 
 const activate = async (req, res) => {
-  const { name, email, activationToken } = req.params;
+  const { activationToken } = req.params;
 
   const user = await User.findOne({
     where: {
-      email: decodeURIComponent(email).trim().toLowerCase(),
       activationToken,
     },
   });
@@ -90,36 +63,110 @@ const activate = async (req, res) => {
 const login = async (req, res) => {
   const { email, password } = req.body;
 
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    throw ApiError.badRequest('Email and password are required');
+  }
+
   const user = await userService.findByEmail(email);
 
   if (!user) {
-    throw ApiError.badRequest('No such user');
+    throw ApiError.badRequest('Invalid email or password');
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    throw ApiError.badRequest('Invalid email or password');
   }
 
   if (user.activationToken) {
     throw ApiError.badRequest('Please activate your email');
   }
 
-  const isPasswordValid = await bcrypt.compare(password, user.password);
+  await generateTokens(res, user);
+};
 
-  if (!isPasswordValid) {
-    throw ApiError.badRequest('Wrong password');
+const requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  const emailError = validateEmail(email);
+
+  if (emailError) {
+    throw ApiError.badRequest(emailError);
   }
 
-  await generateTokens(res, user);
+  const user = await userService.findByEmail(normalizeEmail(email));
+
+  if (user && !user.activationToken) {
+    const resetToken = randomUUID();
+
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await user.save();
+
+    await emailService.sendPasswordResetEmail(user.email, resetToken);
+  }
+
+  res.status(200).send({
+    message:
+      'If an eligible account exists, a password reset email has been sent',
+  });
+};
+
+const resetPassword = async (req, res) => {
+  const { token, password, confirmPassword } = req.body;
+
+  if (!token || typeof token !== 'string') {
+    throw ApiError.badRequest('Reset token is required');
+  }
+
+  const passwordError = validatePassword(password);
+
+  if (passwordError) {
+    throw ApiError.badRequest(passwordError);
+  }
+
+  if (password !== confirmPassword) {
+    throw ApiError.badRequest('Passwords do not match');
+  }
+
+  const user = await User.findOne({
+    where: {
+      passwordResetToken: token,
+    },
+  });
+
+  if (
+    !user ||
+    !user.passwordResetExpiresAt ||
+    new Date(user.passwordResetExpiresAt).getTime() <= Date.now()
+  ) {
+    throw ApiError.badRequest('Invalid or expired reset token');
+  }
+
+  user.password = await bcrypt.hash(password, 10);
+  user.passwordResetToken = null;
+  user.passwordResetExpiresAt = null;
+
+  await user.save();
+
+  res.status(200).send({
+    message: 'Password has been reset successfully',
+  });
 };
 
 const generateTokens = async (res, user) => {
   const normalizedUser = userService.normalize(user);
 
   const accessToken = jwtService.sign(normalizedUser);
-  const refreshAccessToken = jwtService.signRefresh(normalizedUser);
+  const refreshToken = jwtService.signRefresh(normalizedUser);
 
-  await tokenService.save(normalizedUser.id, refreshAccessToken);
+  await tokenService.save(normalizedUser.id, refreshToken);
 
-  res.cookie('refreshToken', refreshAccessToken, {
+  res.cookie(REFRESH_COOKIE, refreshToken, {
+    ...cookieOptions,
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    httpOnly: true,
   });
 
   res.send({
@@ -144,9 +191,9 @@ const refresh = async (req, res) => {
     return;
   }
 
-  const user = await userService.findByEmail(userData.email);
+  const user = await userService.findByPk(userData.id);
 
-  if (!user) {
+  if (!user || user.activationToken) {
     throw ApiError.unauthorized();
     return;
   }
@@ -156,15 +203,13 @@ const refresh = async (req, res) => {
 
 const logout = async (req, res) => {
   const { refreshToken } = req.cookies;
-  const userData = await jwtService.verifyRefresh(refreshToken);
+  const userData = refreshToken ? jwtService.verifyRefresh(refreshToken) : null;
 
-  if (!userData || !refreshToken) {
-    throw ApiError.unauthorized();
-    return;
+  if (userData) {
+    await tokenService.remove(userData.id);
   }
 
-  await tokenService.remove(userData.id);
-
+  res.clearCookie(REFRESH_COOKIE, cookieOptions);
   res.sendStatus(204);
 };
 
@@ -172,6 +217,8 @@ export const authController = {
   register,
   activate,
   login,
+  requestPasswordReset,
+  resetPassword,
   refresh,
   logout,
 };

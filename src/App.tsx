@@ -18,6 +18,8 @@ import { ProfilePage } from './pages/ProfilePage';
 import { NotFound } from './pages/NotFound';
 import { RequireNonAuth } from './components/RequireNonAuth';
 import { AxiosError } from 'axios';
+import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage';
+import { PasswordResetConfirmPage } from './pages/PasswordResetConfirmPage';
 
 export function App() {
   const navigate = useNavigate();
@@ -103,6 +105,14 @@ export function App() {
             <Route path="/" element={<RequireNonAuth />}>
               <Route path="login" element={<LoginPage />} />
               <Route path="sign-up" element={<RegistrationPage />} />
+              <Route
+                path="password-reset"
+                element={<PasswordResetRequestPage />}
+              />
+              <Route
+                path="reset-password/:token"
+                element={<PasswordResetConfirmPage />}
+              />
             </Route>
 
             <Route path="/" element={<RequireAuth />}>

@@ -7,50 +7,17 @@ import { authService } from '../services/authService';
 import { AxiosError } from 'axios';
 import { usePageError } from '../hooks/usePageError';
 import { useAuth } from '../components/AuthContext';
+import {
+  PASSWORD_RULES,
+  validateEmail,
+  validateName,
+  validatePassword,
+} from '../utils/validation';
 
 type RegistrationError = AxiosError<{
   errors?: { name?: string; email?: string; password?: string };
   message: string;
 }>;
-
-const validateName = (name: string) => {
-  const trimmedName = name.trim();
-
-  const nameRegex =
-    /^[a-zA-Zа-яА-ЯіІїЇєЄґҐ]+([ '’\-][a-zA-Zа-яА-ЯіІїЇєЄґҐ]+)*$/;
-
-  if (!trimmedName) {
-    return 'Name is required';
-  }
-
-  if (trimmedName.length < 2 || trimmedName.length > 50) {
-    return 'At least 2 characters and no more than 50 characters';
-  }
-
-  return nameRegex.test(trimmedName) ? undefined : 'Name is not valid';
-};
-
-function validateEmail(email: string) {
-  const EMAIL_PATTERN = /^[\w.+-]+@([\w-]+\.){1,3}[\w-]{2,}$/;
-
-  if (!email) {
-    return 'Email is required';
-  }
-
-  if (!EMAIL_PATTERN.test(email)) {
-    return 'Email is not valid';
-  }
-}
-
-const validatePassword = (password: string) => {
-  if (!password) {
-    return 'Password is required';
-  }
-
-  if (password.length < 6) {
-    return 'At least 6 characters';
-  }
-};
 
 export const RegistrationPage = () => {
   const [error, setError] = usePageError('');
@@ -197,10 +164,15 @@ export const RegistrationPage = () => {
                 </span>
 
                 {touched.password && errors.password && (
-                  <span className="icon is-small is-right has-text-danger">
-                    <i className="fas fa-exclamation-triangle"></i>
-                  </span>
+                  <p className="help is-danger">{errors.password}</p>
                 )}
+
+                <p className="help">Password rules:</p>
+                <ul className="help">
+                  {PASSWORD_RULES.map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
               </div>
 
               {touched.password && errors.password ? (

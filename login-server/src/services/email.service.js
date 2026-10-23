@@ -19,7 +19,7 @@ export function send({ email, subject, html }) {
 }
 
 function sendActivationEmail(name, email, token) {
-  const href = `${process.env.CLIENT_HOST}/activate/${encodeURIComponent(name)}/${encodeURIComponent(email)}/${encodeURIComponent(token)}`;
+  const href = `${process.env.CLIENT_HOST}/activate/${encodeURIComponent(token)}`;
   const html = `
     <h1>Activate account</h1>
     <a href="${href}" >${href}</a>
@@ -32,7 +32,24 @@ function sendActivationEmail(name, email, token) {
   });
 }
 
+function sendPasswordResetEmail(email, token) {
+  const href = `${process.env.CLIENT_HOST}/reset-password/${encodeURIComponent(token)}`;
+
+  const html = `
+    <h1>Reset your password</h1>
+    <p>To reset your password, follow this link:</p>
+    <a href="${href}">${href}</a>
+    <p>If you did not request a password reset, ignore this email.</p>`;
+
+  return send({
+    email,
+    html,
+    subject: 'Password reset',
+  });
+}
+
 export const emailService = {
   sendActivationEmail,
+  sendPasswordResetEmail,
   send,
 };

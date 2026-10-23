@@ -1,6 +1,8 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { authService } from '../services/authService';
 import { accessTokenService } from '../services/accessTokenService';
+
+type RetriableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 export const httpClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL as string,
@@ -9,7 +11,7 @@ export const httpClient = axios.create({
 
 // add `Authorization` header to all requests
 httpClient.interceptors.request.use((request) => {
-  const accessToken = localStorage.getItem('accessToken');
+  const accessToken = accessTokenService.get();
 
   if (accessToken) {
     request.headers.set('Authorization', `Bearer ${accessToken}`);
@@ -24,11 +26,18 @@ httpClient.interceptors.response.use(
 
   // retry request after refreshing access token
   async (error: AxiosError) => {
-    if (error.response?.status !== 401) {
+    const originalRequest = error.config as RetriableRequestConfig | undefined;
+
+    if (
+      error.response?.status !== 401 ||
+      originalRequest?._retry ||
+      !originalRequest
+    ) {
       throw error;
     }
 
-    const originalRequest = error.config;
+    originalRequest._retry = true;
+
     const { accessToken } = await authService.refresh();
 
     accessTokenService.save(accessToken);

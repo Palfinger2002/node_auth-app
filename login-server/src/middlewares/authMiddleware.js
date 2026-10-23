@@ -3,9 +3,9 @@ import { jwtService } from '../services/jwt.service.js';
 export const authMiddleware = (req, res, next) => {
   const authorization = req.headers['authorization'] || '';
 
-  const [, token] = authorization.split(' ');
+  const [type, token] = authorization.split(' ');
 
-  if (!token || !authorization) {
+  if (type !== 'Bearer' || !token) {
     res.sendStatus(401);
     return;
   }
@@ -16,6 +16,8 @@ export const authMiddleware = (req, res, next) => {
     res.sendStatus(401);
     return;
   }
+
+  req.user = userData;
 
   next();
 };

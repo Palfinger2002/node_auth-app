@@ -2,14 +2,26 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { accessTokenService } from '../services/accessTokenService';
 import { authService } from '../services/authService';
 import { User } from '../types/user';
+import { userService } from '../services/userService';
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 const AuthContext = React.createContext({
   isChecked: false,
   currentUser: null as User | null,
   checkAuth: async () => {},
-  activate: async (_name: string, _email: string, _token: string) => {},
-  login: async (_name: string, _email: string, _password: string) => {},
+  activate: async (_token: string) => {},
+  login: async (_email: string, _password: string) => {},
+  updateName: async (_name: string) => {},
+  updateEmail: async (
+    _password: string,
+    _email: string,
+    _confirmEmail: string,
+  ) => {},
+  updatePassword: async (
+    _currentPassword: string,
+    _newPassword: string,
+    _confirmPassword: string,
+  ) => {},
   logout: async () => {},
 });
 /* eslint-enable @typescript-eslint/no-unused-vars */
@@ -18,16 +30,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isChecked, setChecked] = useState(false);
 
-  async function activate(name: string, email: string, token: string) {
-    const { accessToken, user } = await authService.activate(
-      name,
-      email,
-      token,
-    );
+  const activate = useCallback(async (token: string) => {
+    const { accessToken, user } = await authService.activate(token);
 
     accessTokenService.save(accessToken);
     setCurrentUser(user);
-  }
+  }, []);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -43,23 +51,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  async function login(name: string, email: string, password: string) {
-    const { accessToken, user } = await authService.login(
-      name,
-      email,
-      password,
-    );
+  const login = useCallback(async (email: string, password: string) => {
+    const { accessToken, user } = await authService.login(email, password);
 
     accessTokenService.save(accessToken);
     setCurrentUser(user);
-  }
+  }, []);
 
-  async function logout() {
-    await authService.logout();
+  const updateName = useCallback(async (name: string) => {
+    const user = await userService.updateName(name);
 
-    accessTokenService.remove();
-    setCurrentUser(null);
-  }
+    setCurrentUser(user);
+  }, []);
+
+  const updateEmail = useCallback(
+    async (password: string, email: string, confirmEmail: string) => {
+      const { accessToken, user } = await userService.updateEmail(
+        password,
+        email,
+        confirmEmail,
+      );
+
+      accessTokenService.save(accessToken);
+      setCurrentUser(user);
+    },
+    [],
+  );
+
+  const updatePassword = useCallback(
+    async (
+      currentPassword: string,
+      newPassword: string,
+      confirmPassword: string,
+    ) => {
+      const user = await userService.updatePassword(
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      );
+
+      setCurrentUser(user);
+    },
+    [],
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } finally {
+      accessTokenService.remove();
+      setCurrentUser(null);
+    }
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -68,9 +111,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       checkAuth,
       activate,
       login,
+      updateName,
+      updateEmail,
+      updatePassword,
       logout,
     }),
-    [currentUser, isChecked],
+    [
+      isChecked,
+      currentUser,
+      checkAuth,
+      activate,
+      login,
+      updateName,
+      updateEmail,
+      updatePassword,
+      logout,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
