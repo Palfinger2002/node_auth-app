@@ -95,7 +95,7 @@ const requestPasswordReset = async (req, res) => {
     throw ApiError.badRequest(emailError);
   }
 
-  const user = await userService.findByEmail(normalizeEmail(email));
+  const user = await userService.findByEmail(normalizedEmail(email));
 
   if (user && !user.activationToken) {
     const resetToken = randomUUID();
